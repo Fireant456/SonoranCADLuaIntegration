@@ -1,0 +1,50 @@
+name: Update Submodules
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  update-submodules:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2  # Check out your repository
+
+    - name: Update Submodules
+      run: |
+        git submodule update --init --recursive  # Initialize and update all submodules
+
+        # Initialize an empty list to track changed submodules
+        changed_submodules=""
+
+        # Loop through each submodule and update it
+        submodules=($(git config --file .gitmodules --get-regexp path | awk '{ print $2 }'))
+        for submodule in "${submodules[@]}"; do
+          (
+            echo "Updating $submodule..."
+            cd "$submodule"
+            git checkout main  # Use the desired branch or commit
+            if [[ -n $(git status -s) ]]; then
+              # If the submodule has changes, add it to the list
+              changed_submodules="$changed_submodules$submodule, "
+            fi
+            cd ..
+          )
+        done
+
+        # Commit message with the list of changed submodules
+        commit_message="Update submodules"
+        if [[ -n $changed_submodules ]]; then
+          changed_submodules="${changed_submodules%, }"  # Remove trailing comma and space
+          commit_message="$commit_message: $changed_submodules"
+        else
+          # Commit the changes
+          git add .
+          git commit -m "$commit_message"
+          git push
+        fi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # For pushing changes
